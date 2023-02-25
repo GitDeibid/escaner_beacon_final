@@ -1,0 +1,98 @@
+{
+  "project_info": {
+    "project_number": "761475109232",
+    "firebase_url": "https://beaconfb-503eb-default-rtdb.firebaseio.com",
+    "project_id": "beaconfb-503eb",
+    "storage_bucket": "beaconfb-503eb.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:761475109232:android:492deab89bdd0e3d813fb5",
+        "android_client_info": {
+          "package_name": "com.example.apppruebafb"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "761475109232-ijh3cq5l95u9jbqi643fii0e3rtoedgj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBK9ATXS7KxjO5hu0Fe99JGLC1bfev9N9o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "761475109232-ijh3cq5l95u9jbqi643fii0e3rtoedgj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:761475109232:android:a666788f4d940ce0813fb5",
+        "android_client_info": {
+          "package_name": "com.example.interactionbeaconlocator"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "761475109232-ijh3cq5l95u9jbqi643fii0e3rtoedgj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBK9ATXS7KxjO5hu0Fe99JGLC1bfev9N9o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "761475109232-ijh3cq5l95u9jbqi643fii0e3rtoedgj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:761475109232:android:5468e962b8ce290d813fb5",
+        "android_client_info": {
+          "package_name": "com.example.pruebafb"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "761475109232-ijh3cq5l95u9jbqi643fii0e3rtoedgj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBK9ATXS7KxjO5hu0Fe99JGLC1bfev9N9o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "761475109232-ijh3cq5l95u9jbqi643fii0e3rtoedgj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
