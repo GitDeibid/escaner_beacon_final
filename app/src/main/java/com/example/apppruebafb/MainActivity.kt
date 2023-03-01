@@ -246,6 +246,7 @@ class MainActivity : AppCompatActivity() {
                 contador+=1
                 binding.tvProgreso.text="${contador}/100"
 
+
             }
 
             override fun onFinish() {
