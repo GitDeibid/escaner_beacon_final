@@ -23,6 +23,7 @@ import android.os.CountDownTimer
 import android.os.Handler
 import android.provider.Settings
 import android.util.Log
+import android.view.View
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,6 +80,7 @@ class MainActivity : AppCompatActivity() {
     }
     //Variable timer--------------------------------------------------------------------------------------
     private lateinit var timer:CountDownTimer
+    private lateinit var duracionInstancia:CountDownTimer
     //--------------------------------------------------------------------------------------
     //Permisos app en tiempo de ejecución-----------------------------------------------------------------
     val permissionRequest:MutableList<String> = ArrayList()
@@ -122,7 +124,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-
+        var contador=0
 
         val serial = getDeviceIdentifier(this)//Identificador del dispositivo.
         binding.tvIdentificador.text=serial
@@ -199,11 +201,7 @@ class MainActivity : AppCompatActivity() {
         }
         requestPermision()
 
-
         bleSCAN = bleAdaptador!!.bluetoothLeScanner
-
-
-
 
         //Referencias cloud firestore .-
         val docRef = db.collection("escaner").document("estado")
@@ -242,6 +240,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        //Timer de progreso de instancia
+        duracionInstancia=object:CountDownTimer(duracion_ins,duracion_ins/100){
+            override fun onTick(p0: Long) {
+                contador+=1
+                binding.tvProgreso.text="${contador}/100"
+
+            }
+
+            override fun onFinish() {
+                binding.tvProgreso.text="100/100"
+            }
+
+        }
+
         //Detecta si desde la pagina web se genera un cambio en la inicialización del escaner.
         docRef.addSnapshotListener{
             snap, e->
@@ -254,15 +266,20 @@ class MainActivity : AppCompatActivity() {
                 Log.d(TAG, "Current data: ${snap.data}")
                 if(snap.data?.get("iniciado")==false){
                     binding.instruccion1.text = "Escaner no iniciado"
+                    binding.pbBarra.visibility= View.INVISIBLE
                 }else{
                     binding.instruccion1.text = "Escaner iniciado..."
+                    binding.pbBarra.visibility= View.VISIBLE
                 }
 
                 if (snap.data?.get("iniciado")==true){
                     Log.d("mac","${serial}")
                     timer.start()
+                    duracionInstancia.start()
+
                 }else{
                     timer.cancel()
+                    duracionInstancia.cancel()
                 }
             } else {
                 Log.d(TAG, "Current data: null")
