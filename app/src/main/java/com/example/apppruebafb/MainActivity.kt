@@ -5,10 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
-import android.bluetooth.le.BluetoothLeScanner
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
+import android.bluetooth.le.*
 import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
@@ -21,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.os.Handler
+import android.os.StrictMode
 import android.provider.Settings
 import android.util.Log
 import android.view.View
@@ -31,8 +29,11 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.apppruebafb.databinding.ActivityMainBinding
 import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.QueryDocumentSnapshot
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.squareup.okhttp.internal.DiskLruCache.Snapshot
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
@@ -49,6 +50,9 @@ class MainActivity : AppCompatActivity() {
     //Variables ble-------------------------------------------------------------------------
 
     private val scanConfig = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+    private lateinit var scanFilters:Array<ScanFilter>
+    private lateinit var macAddresses:MutableList<String>//replacewithyourMACaddresses
+
     private var scanning = false
     var SCAN_PERIOD:Long = 5000
     var FREQ:Long=60000
@@ -61,21 +65,18 @@ class MainActivity : AppCompatActivity() {
         @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
 
-            if (result?.device?.address.toString()=="60:77:71:8E:69:B9" || result?.device?.address.toString() == "60:77:71:8E:72:85") {
-                if(result?.rssi!! > -64){
-                    reg["Nombre"] = result?.device?.name.toString()
-                    reg["Fecha"] = horaActual().toString()
-                    reg["Rssi"] = result?.rssi.toString()
-                    reg["Rol"] = datos_part?.get("Rol").toString()
-                    reg["Distancia"] = "< 1m"
-
-                    db.collection("registros").document(datos_part?.get("MAC").toString()!!).collection(nombre_experimento!!).add(reg)//guarda cada registro en firebase mediante una colleción llamada registros, que contiene
-                }
-                Log.d("ESCANER", "Dispositivo: ${result?.device?.name}")
-
-                //otra documentos según el id de cada dispositivo. Luego contienen colecciones con los registros de cada instancia.
-
+            //if (result?.device?.address.toString()=="60:77:71:8E:69:B9" || result?.device?.address.toString() == "60:77:71:8E:72:85") {
+            if(result?.rssi!! > -64){
+                reg["Nombre"] = result?.device?.name.toString()
+                reg["Fecha"] = horaActual().toString()
+                reg["Rssi"] = result?.rssi.toString()
+                reg["Rol"] = datos_part?.get("Rol").toString()
+                reg["Distancia"] = "< 1m"
+                //db.collection("registros").document(datos_part?.get("MAC").toString()!!).collection(nombre_experimento!!).add(reg)//guarda cada registro en firebase mediante una colleción llamada registros, que contiene
             }
+            Log.d("ESCANER", "Dispositivo: ${result?.device?.name}")
+                //otra documentos según el id de cada dispositivo. Luego contienen colecciones con los registros de cada instancia.
+            //}
         }
     }
     //Variable timer--------------------------------------------------------------------------------------
@@ -123,8 +124,9 @@ class MainActivity : AppCompatActivity() {
         //setContentView(R.layout.activity_main)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         var contador=0
+        macAddresses= mutableListOf()
+        scanFilters=arrayOf()
 
         val serial = getDeviceIdentifier(this)//Identificador del dispositivo.
         binding.tvIdentificador.text=serial
@@ -207,8 +209,31 @@ class MainActivity : AppCompatActivity() {
         val docRef = db.collection("escaner").document("estado")
         val participanteRef=db.collection("participantes").document(serie!!)//Obtiene el rol del participante.
         val escConfig = db.collection("configuracion").document("general")
+        val beacons_list=db.collection("beacons")
+        //recallMAC(macAddresses)
+        //initScanMACFilter(macAddresses)
 
-        leerColeccion(participanteRef)
+        //Log.d("LISTADOMAC",macAddresses.toString())
+
+
+        leerDocumentos(participanteRef)
+        beacons_list.get().addOnSuccessListener { docs ->
+            for (doc in docs.documents) {
+                macAddresses.add(doc.id)
+                Log.d("ID_DOC_MAC", doc.id)
+            }
+            for (d in macAddresses){
+                Log.d("Arreglo",d)
+            }
+            scanFilters = macAddresses.map { address ->
+                ScanFilter.Builder()
+                    .setDeviceAddress(address)
+                    .build()
+            }.toTypedArray()
+        }
+
+
+
         escConfig.addSnapshotListener{
             snap,e->
             if(e!=null){
@@ -245,8 +270,6 @@ class MainActivity : AppCompatActivity() {
             override fun onTick(p0: Long) {
                 contador+=1
                 binding.tvProgreso.text="${contador}/100"
-
-
             }
 
             override fun onFinish() {
@@ -268,6 +291,18 @@ class MainActivity : AppCompatActivity() {
                 if(snap.data?.get("iniciado")==false){
                     binding.instruccion1.text = "Escaner no iniciado"
                     binding.pbBarra.visibility= View.INVISIBLE
+                    //Detener escaner.
+                    timer.cancel()
+                    duracionInstancia.cancel()
+
+                    if (ActivityCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.BLUETOOTH_SCAN
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_SCAN),100)
+                    }
+                    bleSCAN!!.stopScan(bleScanCallback)
                 }else{
                     binding.instruccion1.text = "Escaner iniciado..."
                     binding.pbBarra.visibility= View.VISIBLE
@@ -304,7 +339,7 @@ class MainActivity : AppCompatActivity() {
                 Log.d("ESCANER","Deteniendo el escaneo")
             }, SCAN_PERIOD)
             scanning = true
-            bleSCAN!!.startScan(null,scanConfig,bleScanCallback)
+            bleSCAN!!.startScan(scanFilters.toList(),scanConfig,bleScanCallback)
             Log.d("ESCANER","Se inicia el escaneo")
         } else {
             scanning = false
@@ -330,7 +365,7 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun leerColeccion(docRef: DocumentReference){
+    private fun leerDocumentos(docRef: DocumentReference){
         docRef.get()
             .addOnSuccessListener { document ->
                 if (document != null) {
@@ -351,4 +386,6 @@ class MainActivity : AppCompatActivity() {
                 Log.d("TAG", "get failed with ", exception)
             }
     }
+
+
 }
