@@ -1,6 +1,7 @@
 package com.example.apppruebafb
 
 import android.Manifest
+import android.R
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
@@ -11,6 +12,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.icu.text.SimpleDateFormat
 import android.location.LocationManager
 import android.os.Build
@@ -22,6 +25,9 @@ import android.os.StrictMode
 import android.provider.Settings
 import android.util.Log
 import android.view.View
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
+import android.widget.ImageView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,6 +43,7 @@ import com.squareup.okhttp.internal.DiskLruCache.Snapshot
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import com.example.apppruebafb.configInterface as cI
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding:ActivityMainBinding
@@ -72,7 +79,7 @@ class MainActivity : AppCompatActivity() {
                 reg["Rssi"] = result?.rssi.toString()
                 reg["Rol"] = datos_part?.get("Rol").toString()
                 reg["Distancia"] = "< 1m"
-                //db.collection("registros").document(datos_part?.get("MAC").toString()!!).collection(nombre_experimento!!).add(reg)//guarda cada registro en firebase mediante una colleción llamada registros, que contiene
+                db.collection("registros").document(datos_part?.get("MAC").toString()!!).collection(nombre_experimento!!).add(reg)//guarda cada registro en firebase mediante una colleción llamada registros, que contiene
             }
             Log.d("ESCANER", "Dispositivo: ${result?.device?.name}")
                 //otra documentos según el id de cada dispositivo. Luego contienen colecciones con los registros de cada instancia.
@@ -248,6 +255,7 @@ class MainActivity : AppCompatActivity() {
                 nombre_experimento=snap.data?.get("nombre").toString()
                 duracion_ins = snap.data?.get("duracionIns").toString().toLong()*60000//60000 millisecons son un minuto.
                 //Log.d(TAG, "Parámetros de configuración: ${snap.data}")
+                cI.setConf(SCAN_PERIOD,FREQ,nombre_experimento!!,duracion_ins)
                 Log.d("PARAMETROS CONFIG", "Duracion Escaner: ${SCAN_PERIOD} y frecuencia escaner: ${FREQ} ; nombre de instancia: ${nombre_experimento}; duracion instancia: ${duracion_ins}")
             }
             else {
@@ -255,28 +263,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        //Timer de activación de escaner cada x tiempo.
-        timer=object:CountDownTimer(duracion_ins,FREQ){
-            override fun onTick(p0: Long) {
-                scanBLE()
-            }
-            override fun onFinish() {
-                binding.instruccion1.text = "Escaner finalizado..."
-            }
-        }
 
-        //Timer de progreso de instancia
-        duracionInstancia=object:CountDownTimer(duracion_ins,duracion_ins/100){
-            override fun onTick(p0: Long) {
-                contador+=1
-                binding.tvProgreso.text="${contador}/100"
-            }
 
-            override fun onFinish() {
-                binding.tvProgreso.text="100/100"
-            }
-
-        }
 
         //Detecta si desde la pagina web se genera un cambio en la inicialización del escaner.
         docRef.addSnapshotListener{
@@ -286,7 +274,28 @@ class MainActivity : AppCompatActivity() {
                 return@addSnapshotListener
             }
             if (snap != null && snap.exists()) {
+                //Timer de activación de escaner cada x tiempo.
+                timer=object:CountDownTimer(cI.getDur(),cI.getFreq()){
+                    override fun onTick(p0: Long) {
+                        scanBLE()
+                    }
+                    override fun onFinish() {
+                        binding.instruccion1.text = "Escaner finalizado..."
+                    }
+                }
 
+                //Timer de progreso de instancia
+                duracionInstancia=object:CountDownTimer(cI.getDur(),cI.getDur()/100){
+                    override fun onTick(p0: Long) {
+                        contador+=1
+                        binding.tvProgreso.text="${contador}/100"
+                    }
+
+                    override fun onFinish() {
+                        binding.tvProgreso.text="100/100"
+                    }
+
+                }
                 Log.d(TAG, "Current data: ${snap.data}")
                 if(snap.data?.get("iniciado")==false){
                     binding.instruccion1.text = "Escaner no iniciado"
@@ -304,12 +313,16 @@ class MainActivity : AppCompatActivity() {
                     }
                     bleSCAN!!.stopScan(bleScanCallback)
                 }else{
+
                     binding.instruccion1.text = "Escaner iniciado..."
                     binding.pbBarra.visibility= View.VISIBLE
+
+
                 }
 
                 if (snap.data?.get("iniciado")==true){
                     Log.d("mac","${serial}")
+
                     timer.start()
                     duracionInstancia.start()
 
@@ -323,6 +336,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun animar(iconoBT:ImageView,estado:Boolean){
+        //Colores del icono que indican si se está escaneando o no
+        val rojo = Color.parseColor("#F44336")
+        val verde= Color.parseColor("#4CAF50")
+        //Configuracion de la animación.-
+        val animationBT = AlphaAnimation(1.0f,0.0f)
+        animationBT.duration = 1000
+        animationBT.repeatCount = Animation.INFINITE
+        animationBT.repeatMode = Animation.REVERSE
+        //Comprobar si se está escanenado o no
+        if (estado){
+            iconoBT.setColorFilter(verde)
+            iconoBT.startAnimation(animationBT)
+        }else{
+            iconoBT.clearAnimation()
+            iconoBT.setColorFilter(rojo)
+        }
+    }
 
     private fun scanBLE(){
         if (!scanning) { // Stops scanning after a pre-defined scan period.
@@ -336,14 +367,18 @@ class MainActivity : AppCompatActivity() {
                     ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_SCAN),100)
                 }
                 bleSCAN!!.stopScan(bleScanCallback)
+                animar(binding.ivBtStatus,false)
                 Log.d("ESCANER","Deteniendo el escaneo")
             }, SCAN_PERIOD)
             scanning = true
             bleSCAN!!.startScan(scanFilters.toList(),scanConfig,bleScanCallback)
+            //Animación que indica si la app se encuentra realizando el escaner bluetooth.
+            animar(binding.ivBtStatus,true)
             Log.d("ESCANER","Se inicia el escaneo")
         } else {
             scanning = false
             bleSCAN!!.stopScan(bleScanCallback)
+            binding.ivBtStatus
             Log.d("ESCANER","Deteniendo el escaneo")
         }
     }

@@ -90,4 +90,15 @@
         app:layout_constraintTop_toBottomOf="@+id/pbBarra"
         app:layout_constraintVertical_bias="0.113" />
 
+    <ImageView
+        android:id="@+id/iv_bt_status"
+        android:layout_width="72dp"
+        android:layout_height="74dp"
+        android:layout_marginTop="44dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/tvProgreso"
+        app:srcCompat="@drawable/ic_baseline_bluetooth_searching_24" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>
