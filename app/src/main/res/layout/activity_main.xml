@@ -73,32 +73,28 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/tvMensaje" />
 
-    <TextView
-        android:id="@+id/tvProgreso"
-        android:layout_width="78dp"
-        android:layout_height="26dp"
-        android:layout_marginStart="32dp"
-        android:layout_marginTop="32dp"
-        android:layout_marginEnd="32dp"
-        android:layout_marginBottom="32dp"
-        android:text="/100"
-        android:textAlignment="center"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.494"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/pbBarra"
-        app:layout_constraintVertical_bias="0.113" />
-
     <ImageView
         android:id="@+id/iv_bt_status"
         android:layout_width="72dp"
         android:layout_height="74dp"
-        android:layout_marginTop="44dp"
+        android:layout_marginTop="40dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tvProgreso"
+        app:layout_constraintTop_toBottomOf="@+id/pbBarra"
         app:srcCompat="@drawable/ic_baseline_bluetooth_searching_24" />
+
+    <TextView
+        android:id="@+id/tvZona"
+        android:layout_width="146dp"
+        android:layout_height="36dp"
+        android:layout_marginBottom="32dp"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/tvGpsStatus"
+        app:layout_constraintHorizontal_bias="0.488"
+        app:layout_constraintStart_toEndOf="@+id/tvBtStatus"
+        app:layout_constraintTop_toBottomOf="@+id/iv_bt_status"
+        app:layout_constraintVertical_bias="0.41" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

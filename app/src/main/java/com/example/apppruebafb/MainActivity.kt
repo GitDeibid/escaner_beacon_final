@@ -16,12 +16,8 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.icu.text.SimpleDateFormat
 import android.location.LocationManager
-import android.os.Build
+import android.os.*
 import androidx.appcompat.app.AppCompatActivity
-import android.os.Bundle
-import android.os.CountDownTimer
-import android.os.Handler
-import android.os.StrictMode
 import android.provider.Settings
 import android.util.Log
 import android.view.View
@@ -50,22 +46,26 @@ class MainActivity : AppCompatActivity() {
     //Variable firestore -------------------------------------------------------------------
     val db=Firebase.firestore
     var reg:MutableMap<String,String> = HashMap()//Hash map que contiene los datos.
+    val dispos = ArrayList<String>()//Arreglo de strings vacio.
+    var ultimo:String=""
+    var last_name:String=""
     //var ROL:String? = "-"
     //var Modelo:String? = Build.MODEL
     var nombre_experimento:String?=""
+    var FREQ:Long=15000
     var serie:String?=""
     //Variables ble-------------------------------------------------------------------------
 
-    private val scanConfig = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+    private val scanConfig = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_BALANCED).build()
     private lateinit var scanFilters:Array<ScanFilter>
     private lateinit var macAddresses:MutableList<String>//replacewithyourMACaddresses
 
-    private var scanning = false
-    var SCAN_PERIOD:Long = 5000
-    var FREQ:Long=60000
-    var duracion_ins:Long=300000 //5 minutos
-    private val handler = Handler()
+    var isScanning = false
+    /*var SCAN_PERIOD:Long = 3000
+    var duracion_ins:Long=300000 //5 minutos*/
+    private val handler = Handler(Looper.getMainLooper())
     private var bleSCAN: BluetoothLeScanner?= null
+
     //SCAN CALLBACK BLE --------------------------------------------------------------------
 
     private val bleScanCallback = object:ScanCallback(){
@@ -73,15 +73,35 @@ class MainActivity : AppCompatActivity() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
 
             //if (result?.device?.address.toString()=="60:77:71:8E:69:B9" || result?.device?.address.toString() == "60:77:71:8E:72:85") {
-            if(result?.rssi!! > -64){
-                reg["Nombre"] = result?.device?.name.toString()
-                reg["Fecha"] = horaActual().toString()
-                reg["Rssi"] = result?.rssi.toString()
-                reg["Rol"] = datos_part?.get("Rol").toString()
-                reg["Distancia"] = "< 1m"
-                db.collection("registros").document(datos_part?.get("MAC").toString()!!).collection(nombre_experimento!!).add(reg)//guarda cada registro en firebase mediante una colleción llamada registros, que contiene
+            if(result?.rssi!! > -60){// menor a 1 metro de distancia.
+                var name = result?.device?.name.toString()
+                if(dispos.isNotEmpty()){
+                    ultimo = dispos[dispos.size - 1]
+                    if (ultimo != result?.device?.name.toString()){
+                        reg["Nombre"] = name
+                        reg["Fecha"] = horaActual().toString()
+                        reg["Rssi"] = result?.rssi.toString()
+                        reg["Rol"] = datos_part?.get("Rol").toString()
+                        reg["Distancia"] = "< 1m"
+                        db.collection("Test").document(datos_part?.get("MAC").toString()!!).collection(nombre_experimento!!).add(reg)//guarda cada registro en firebase mediante una colleción llamada registros,
+                        //Log.d("ESCANER", "Zona actual: ${name}, Hora actual: ${horaActual().toString()}")
+                        binding.tvZona.text=name
+                        dispos.add(name)
+                    }
+                }else{
+                    dispos.add(name)
+                    reg["Nombre"] = name
+                    reg["Fecha"] = horaActual().toString()
+                    reg["Rssi"] = result?.rssi.toString()
+                    reg["Rol"] = datos_part?.get("Rol").toString()
+                    reg["Distancia"] = "< 1m"
+                    //Log.d("ESCANER", "Primera zona detectada: ${name}, Hora actual: ${horaActual().toString()}")
+                    binding.tvZona.text=name
+                    db.collection("Test").document(datos_part?.get("MAC").toString()!!).collection(nombre_experimento!!).add(reg)//guarda cada registro en firebase mediante una colleción llamada registros
+                }
+
             }
-            Log.d("ESCANER", "Dispositivo: ${result?.device?.name}")
+            //Log.d("ESCANER", "Dispositivo: ${result?.device?.name}")
                 //otra documentos según el id de cada dispositivo. Luego contienen colecciones con los registros de cada instancia.
             //}
         }
@@ -117,7 +137,7 @@ class MainActivity : AppCompatActivity() {
             permissionLauncher.launch(permissionRequest.toTypedArray())
         }
     }
-    //Variables -------------------------------------------------------------------------------------
+    //Variables de permisos de app -------------------------------------------------------------------------------------
     private var locationPGranted = false
     private var btPGranted = false
     private var btScanPGranted=false
@@ -144,6 +164,7 @@ class MainActivity : AppCompatActivity() {
         val bleAdaptador: BluetoothAdapter? = bluetoothManager.adapter
         val locationMngr = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val isLocationEnabled = locationMngr.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationMngr.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+
 
         //solicitar al usuario que encienda bluetooth y localización para que no falle la app.
         if (bleAdaptador==null){
@@ -172,8 +193,6 @@ class MainActivity : AppCompatActivity() {
             binding.tvBtStatus.text="BT Activado"
             binding.tvBtStatus.setTextColor(Color.GREEN)
         }
-
-
 
         if (locationMngr==null){
             //El dispositivo no tiene disponible servicio de ubicación
@@ -206,8 +225,8 @@ class MainActivity : AppCompatActivity() {
             btScanPGranted = permisos[Manifest.permission.BLUETOOTH]?:btScanPGranted
             btConGranted = permisos[Manifest.permission.BLUETOOTH_CONNECT]?:btConGranted
             lmac=permisos[Manifest.permission.ACCESS_WIFI_STATE]?:lmac
-
         }
+
         requestPermision()
 
         bleSCAN = bleAdaptador!!.bluetoothLeScanner
@@ -223,14 +242,28 @@ class MainActivity : AppCompatActivity() {
         //Log.d("LISTADOMAC",macAddresses.toString())
 
 
-        leerDocumentos(participanteRef)
+        participanteRef.get().addOnSuccessListener { document ->
+            if (document != null) {
+                try{
+                    datos_part=document.data!!
+                    binding.tvMensaje.text="Rol participante: ${datos_part?.get("Rol")}"
+                }catch (e:Exception){
+                    binding.tvMensaje.text="Participante no registrado!!!"
+                }
+
+                //Log.d("PARTICIPANTE", "Data: ${datos_part?.get("MAC").toString()}")
+            } else {
+                var mensaje="Participante no registrado!"
+                Log.d("TAG", "No such document")
+            }
+        }.addOnFailureListener { exception ->
+            Log.d("TAG", "get failed with ", exception)
+        }
+
         beacons_list.get().addOnSuccessListener { docs ->
             for (doc in docs.documents) {
                 macAddresses.add(doc.id)
                 Log.d("ID_DOC_MAC", doc.id)
-            }
-            for (d in macAddresses){
-                Log.d("Arreglo",d)
             }
             scanFilters = macAddresses.map { address ->
                 ScanFilter.Builder()
@@ -238,7 +271,6 @@ class MainActivity : AppCompatActivity() {
                     .build()
             }.toTypedArray()
         }
-
 
 
         escConfig.addSnapshotListener{
@@ -250,21 +282,18 @@ class MainActivity : AppCompatActivity() {
             if (snap != null && snap.exists()) {
 
                 //Log.d(TAG, "Current data: ${snap.data}")
-                SCAN_PERIOD = snap.data?.get("duracionScaner").toString().toLong()*1000 //Multiplicar por 1000 para pasar a millisegundos
-                FREQ = snap.data?.get("frequency").toString().toLong()*60000 //A minutos.
+                //SCAN_PERIOD = snap.data?.get("duracionScaner").toString().toLong()*1000 //Multiplicar por 1000 para pasar a millisegundos
+                FREQ = snap.data?.get("frequency").toString().toLong()*1000 //A milisegundos.
                 nombre_experimento=snap.data?.get("nombre").toString()
-                duracion_ins = snap.data?.get("duracionIns").toString().toLong()*60000//60000 millisecons son un minuto.
+                //duracion_ins = snap.data?.get("duracionIns").toString().toLong()*60000//60000 millisecons son un minuto.
                 //Log.d(TAG, "Parámetros de configuración: ${snap.data}")
-                cI.setConf(SCAN_PERIOD,FREQ,nombre_experimento!!,duracion_ins)
-                Log.d("PARAMETROS CONFIG", "Duracion Escaner: ${SCAN_PERIOD} y frecuencia escaner: ${FREQ} ; nombre de instancia: ${nombre_experimento}; duracion instancia: ${duracion_ins}")
+                //cI.setConf(SCAN_PERIOD,FREQ,nombre_experimento!!,duracion_ins)
+                //Log.d("PARAMETROS CONFIG", "Duracion Escaner: ${SCAN_PERIOD} y frecuencia escaner: ${FREQ} ; nombre de instancia: ${nombre_experimento}; duracion instancia: ${duracion_ins}")
             }
             else {
                 Log.d(TAG, "Current data: null")
             }
         }
-
-
-
 
         //Detecta si desde la pagina web se genera un cambio en la inicialización del escaner.
         docRef.addSnapshotListener{
@@ -274,8 +303,10 @@ class MainActivity : AppCompatActivity() {
                 return@addSnapshotListener
             }
             if (snap != null && snap.exists()) {
+                var start=snap.data?.get("iniciado")
+                //--------------------------------------------------------------TIMERS-------------------------------------------------------------//
                 //Timer de activación de escaner cada x tiempo.
-                timer=object:CountDownTimer(cI.getDur(),cI.getFreq()){
+                /*timer=object:CountDownTimer(cI.getDur(),cI.getFreq()){
                     override fun onTick(p0: Long) {
                         scanBLE()
                     }
@@ -295,41 +326,52 @@ class MainActivity : AppCompatActivity() {
                         binding.tvProgreso.text="100/100"
                     }
 
-                }
-                Log.d(TAG, "Current data: ${snap.data}")
-                if(snap.data?.get("iniciado")==false){
+                }*/
+                //--------------------------------------------------------------TIMERS-------------------------------------------------------------//
+
+                Log.d(TAG, "Current scanner status: ${snap.data}")
+                if(start==false){//DETENER EL ESCANER BT.-
                     binding.instruccion1.text = "Escaner no iniciado"
                     binding.pbBarra.visibility= View.INVISIBLE
+                    animar(binding.ivBtStatus,false)
                     //Detener escaner.
-                    timer.cancel()
-                    duracionInstancia.cancel()
+                    //timer.cancel()
+                    //duracionInstancia.cancel()
 
                     if (ActivityCompat.checkSelfPermission(
                             this,
                             Manifest.permission.BLUETOOTH_SCAN
                         ) != PackageManager.PERMISSION_GRANTED
-                    ) {
+                    ){
                         ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_SCAN),100)
                     }
-                    bleSCAN!!.stopScan(bleScanCallback)
+                    //bleSCAN!!.stopScan(bleScanCallback)
+                    stopScanning()
                 }else{
-
                     binding.instruccion1.text = "Escaner iniciado..."
                     binding.pbBarra.visibility= View.VISIBLE
-
-
+                    animar(binding.ivBtStatus,true)
+                    startScanning()
                 }
-
-                if (snap.data?.get("iniciado")==true){
+/*
+                if (start==true){//INICIAR EL ESCANEO BT.-
                     Log.d("mac","${serial}")
 
-                    timer.start()
-                    duracionInstancia.start()
+                    /*while(start==true){//Mientras el escaner esté iniciado, realizará escaners periodicos hasta la interrupción del usuario.
+                        //scanBLE()
+
+                        Thread.sleep(cI.getFreq())//Debe ser en milisegundos.
+                        Log.d("Scan","Escaner realizado....")
+                    }*/
+                    startScanning()
+                    //timer.start()
+                    //duracionInstancia.start()
 
                 }else{
-                    timer.cancel()
-                    duracionInstancia.cancel()
-                }
+                    stopScanning()
+                    //timer.cancel()
+                    //duracionInstancia.cancel()
+                }*/
             } else {
                 Log.d(TAG, "Current data: null")
             }
@@ -355,7 +397,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun scanBLE(){
+    private fun startScanning() {
+        isScanning=true
+        handler.post(scanRunnable)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun stopScanning() {
+        //Log.d("ESCANER","Deteniendo el escaneo")
+        handler.removeCallbacks(scanRunnable)
+        bleSCAN?.stopScan(bleScanCallback)
+    }
+
+    private val scanRunnable = object : Runnable {
+        @SuppressLint("MissingPermission")
+        override fun run() {
+            // Inicia el escaneo
+            if(isScanning){
+                stopScanning()
+                //Log.d("ESCANER","Iniciando el escaneo")
+                bleSCAN!!.startScan(scanFilters.toList(),scanConfig,bleScanCallback)
+            }else{
+                //Log.d("ESCANER","Iniciando el escaneo")
+                bleSCAN!!.startScan(scanFilters.toList(),scanConfig,bleScanCallback)
+            }
+            // Programa la próxima ejecución después de 15 segundos
+            handler.postDelayed(this, FREQ)
+        }
+    }
+
+    /*private fun scanBLE(){
         if (!scanning) { // Stops scanning after a pre-defined scan period.
             handler.postDelayed({
                 scanning = false
@@ -381,13 +452,13 @@ class MainActivity : AppCompatActivity() {
             binding.ivBtStatus
             Log.d("ESCANER","Deteniendo el escaneo")
         }
-    }
-
+    }*/
 
     @SuppressLint("NewApi")
     private fun horaActual(): String? {
         var hora:String?=null
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss")
+        //val sdf = SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
+        val sdf = SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
         val currentdate = sdf.format(Date())
         hora = currentdate.toString()
         //Log.d("FECHA","Fecha actual: ${hora}")
@@ -397,29 +468,6 @@ class MainActivity : AppCompatActivity() {
     //@RequiresApi(Build.VERSION_CODES.O)
     fun getDeviceIdentifier(context: Context): String {
         return Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-    }
-
-
-    private fun leerDocumentos(docRef: DocumentReference){
-        docRef.get()
-            .addOnSuccessListener { document ->
-                if (document != null) {
-                    try{
-                        datos_part=document.data!!
-                        binding.tvMensaje.text="Rol participante: ${datos_part?.get("Rol")}"
-                    }catch (e:Exception){
-                        binding.tvMensaje.text="Participante no registrado!!!"
-                    }
-
-                    //Log.d("PARTICIPANTE", "Data: ${datos_part?.get("MAC").toString()}")
-                } else {
-                    var mensaje="Participante no registrado!"
-                    Log.d("TAG", "No such document")
-                }
-            }
-            .addOnFailureListener { exception ->
-                Log.d("TAG", "get failed with ", exception)
-            }
     }
 
 
